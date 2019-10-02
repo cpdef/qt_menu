@@ -31,6 +31,10 @@ class MainLayout : public QWidget {
     public slots:
         void search(const QString& text);
         void exec();
+        void handleResize();
         virtual void keyPressEvent(QKeyEvent *event);
+    protected:
+        void showEvent(QShowEvent *event) override;
+        void resizeEvent(QResizeEvent *event) override;
 };
 

@@ -1,5 +1,8 @@
 #include "layout.h"
 
+#include <QtCore/QDebug>
+#include <QtGui/QWindow>
+#include <QtGui/QScreen>
 #include <QVBoxLayout>
 #include <QFormLayout>
 #include <QGraphicsOpacityEffect>
@@ -22,37 +25,13 @@ MainLayout::MainLayout(QWidget *parent)
     QVBoxLayout *vbox = new QVBoxLayout(this);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     glayout = new QGridLayout();
-    int w = width();//glayout->geometry().width();
-    int h = height();//glayout->geometry().height();
     
-    glayout->setSpacing(w/30);
-    int cols = 7;
-    std::cout << w << std::endl;
-    int rows = h/(w/7);
-
-    for (int r =0;r<rows;r++)
-    {
-        for (int c = 0;c<cols;c++)
-        {
-            QPushButton *button = new QPushButton(this);
-            buttons.push_back(button);
-            
-            // size policy
-            button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-            QSizePolicy sp = button->sizePolicy();
-            sp.setRetainSizeWhenHidden(true);
-            button->setSizePolicy(sp);
-            
-            glayout->addWidget(button, r, c);
-            button->setVisible(false);
-        }
-    }
-
     le = new QLineEdit("");
     le->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     vbox->addWidget(le, 1);
     vbox->addLayout(glayout, 20);
 
+    handleResize();
 
     setLayout(vbox);
     setWindowFlags(Qt::Dialog | Qt::FramelessWindowHint);
@@ -64,11 +43,90 @@ MainLayout::MainLayout(QWidget *parent)
     setAutoFillBackground(1);
 
     connect(le, SIGNAL(textChanged(const QString&)), this, SLOT(search(const QString&)));
-    for (auto button:buttons)
+    connect(le, SIGNAL(returnPressed()), this, SLOT(exec()));
+}
+
+void MainLayout::showEvent(QShowEvent *event)
+{
+    Q_UNUSED(event);
+    qDebug() << "showEvent" << windowHandle();
+    auto *window = windowHandle();
+    if (!window)
     {
+        return;
+    }
+    connect(window, &QWindow::screenChanged, this, &MainLayout::handleResize);
+    handleResize();
+}
+
+void MainLayout::resizeEvent(QResizeEvent *event)
+{
+    Q_UNUSED(event);
+    handleResize();
+}
+
+void MainLayout::handleResize() 
+{
+    auto *window = windowHandle();
+    if (!window)
+    {
+        return;
+    }
+
+    auto *screen = window->screen();
+    if (!screen)
+    {
+        return;
+    }
+
+    auto r = screen->geometry();
+    qDebug() << "forcing max size on screen" << screen->name();
+    setFixedSize(r.width()*0.9, r.height()*0.9);
+
+    int w = width();//glayout->geometry().width();
+    int h = height();//glayout->geometry().height();
+
+    glayout->setSpacing(w/30);
+
+    int cols = 7;
+    int rows = h/(w/7);
+
+    // If there are buttons already in the layout, remove them
+    for (auto button : buttons)
+    {
+        glayout->removeWidget(button);
+    }
+
+    // Add more buttons, if needed
+    int numButtons = rows * cols;
+    while (buttons.size() < numButtons)
+    {
+        QPushButton *button = new QPushButton(this);
+        buttons.push_back(button);
+
+        // size policy
+        button->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        QSizePolicy sp = button->sizePolicy();
+        sp.setRetainSizeWhenHidden(true);
+        button->setSizePolicy(sp);
+
+        button->setVisible(false);
         connect(button, SIGNAL(clicked()), this, SLOT(exec()));
     }
-    connect(le, SIGNAL(returnPressed()), this, SLOT(exec()));
+
+    for (int r =0;r<rows;r++)
+    {
+        for (int c = 0;c<cols;c++)
+        {
+            glayout->addWidget(buttons[c+r*cols], r, c);
+        }
+    }
+
+    while (buttons.size() > numButtons)
+    {
+        delete buttons.back();
+        buttons.pop_back();
+    }
 }
 
 void MainLayout::search(const QString& text)
